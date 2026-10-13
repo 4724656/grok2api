@@ -368,6 +368,7 @@ func parseVideoStream(response *http.Response, progress func(int)) (provider.Vid
 	}
 	var result provider.VideoResult
 	var postID string
+	var isModerated bool
 	handle := func(root map[string]any) (bool, error) {
 		if errorValue, ok := root["error"].(map[string]any); ok {
 			return false, webMediaStreamError(errorValue)
@@ -386,11 +387,12 @@ func parseVideoStream(response *http.Response, progress func(int)) (provider.Vid
 				postID = value
 			}
 			moderated, _ := stream["moderated"].(bool)
-			if moderated {
-				return false, nil
-			}
 			if setVideoResultURL(&result, firstString(stream, "videoUrl", "contentUrl", "contentURL", "assetUrl", "assetURL", "fileUri", "fileURL")) {
 				return true, nil
+			}
+			if moderated {
+				isModerated = true
+				return false, nil
 			}
 		}
 		for _, attachment := range videoFileAttachments(root) {
@@ -412,6 +414,9 @@ func parseVideoStream(response *http.Response, progress func(int)) (provider.Vid
 	}
 	if err != nil {
 		return provider.VideoResult{}, "", err
+	}
+	if result.URL == "" && isModerated {
+		return provider.VideoResult{}, postID, fmt.Errorf("视频内容未通过 Grok 上游安全审核 (Content Moderated)")
 	}
 	return result, postID, nil
 }
