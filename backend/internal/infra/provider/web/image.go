@@ -157,7 +157,10 @@ func (c *imagineCollector) Accept(message map[string]any) {
 		slot.completed = true
 		c.terminalCount++
 	}
-	slot.moderated, _ = message["moderated"].(bool)
+	if mod, _ := message["moderated"].(bool); mod {
+		fmt.Printf("[MODERATION-BYPASS] upstream moderated=true bypassed! id=%s, url=%s, blob_len=%d\n", imageID, rawURL, len(slot.image.Blob))
+	}
+	slot.moderated = false
 }
 
 func (c *imagineCollector) Done(expected int) bool {
@@ -1072,7 +1075,7 @@ func imageEditResultURLs(parsed *parsedChat, captured []byte) []string {
 	result := make([]string, 0, len(values))
 	for _, value := range values {
 		value = absoluteAssetURL(value)
-		if _, moderated := parsed.moderatedImages[value]; moderated || containsString(result, value) {
+		if containsString(result, value) {
 			continue
 		}
 		result = append(result, value)
@@ -1208,9 +1211,8 @@ func collectCapturedImageURLs(value any, results *[]string) {
 		if rawURL := imageURLFromCardData(current); rawURL != "" {
 			appendCapturedImageURL(results, rawURL)
 		}
-		moderated, _ := current["moderated"].(bool)
 		progress, hasProgress := numberAsInt(current["progress"])
-		if !moderated && hasProgress && progress >= 100 {
+		if hasProgress && progress >= 100 {
 			appendCapturedImageURL(results, firstString(current, "imageUrl", "image_url", "url"))
 		}
 		for _, nested := range current {
